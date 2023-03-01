@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Table</title>
+<link rel="stylesheet" href="table.css"></link>
+</head>
+<body>
+<a href="#" id='somelink1'>click below for more info</a>
+<div id='showMe1' >
+    <table>
+        <tr>
+            <th>fdsfds</th>
+            <th>fdsfds</th>
+            <th>fdsfds</th>
+        </tr>
+        <tr>
+            <td>LALALA</td>
+            <td>LALALA</td>
+            <td>LALALA</td>
+        </tr>
+    </table>     
+
+    
+</div>
+<br/>
+</body>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script>
+$(document).ready(function(){
+$('#somelink1').click(function(){
+$('#showMe1').toggle();
+    });
+});
+</script>
+
+</html>
+

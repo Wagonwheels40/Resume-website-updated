@@ -1,0 +1,297 @@
+
+  <!DOCTYPE html>
+  <html lang="en">
+  <body>
+  <script src="https://unpkg.com/gojs@2.2.16/release/go.js"></script>
+
+  <div id="allSampleContent" class="p-4 w-full">
+    <script id="code">
+    function init() {
+
+      const $ = go.GraphObject.make;  // for conciseness in defining templates
+
+      var blues = ['#E1F5FE', '#B3E5FC', '#81D4FA', '#4FC3F7', '#29B6F6', '#03A9F4', '#039BE5', '#0288D1', '#0277BD', '#01579B'];
+
+      myDiagram =
+        $(go.Diagram, "myDiagramDiv",  // must name or refer to the DIV HTML element
+          {
+            initialContentAlignment: go.Spot.Center,
+            layout: $(go.ForceDirectedLayout),
+            // moving and copying nodes also moves and copies their subtrees
+            "commandHandler.copiesTree": true,  // for the copy command
+            "commandHandler.deletesTree": true, // for the delete command
+            "draggingTool.dragsTree": true,  // dragging for both move and copy
+            "undoManager.isEnabled": true
+          });
+
+      // Define the Node template.
+      // This uses a Spot Panel to position a button relative
+      // to the ellipse surrounding the text.
+      myDiagram.nodeTemplate =
+        $(go.Node, "Spot",
+          {
+            selectionObjectName: "PANEL",
+            isTreeExpanded: false,
+            isTreeLeaf: false
+          },
+          // the node's outer shape, which will surround the text
+          $(go.Panel, "Auto",
+            { name: "PANEL" },
+            $(go.Shape, "Circle",
+              { fill: "whitesmoke", stroke: "black" },
+              new go.Binding("fill", "rootdistance", dist => {
+                dist = Math.min(blues.length - 1, dist);
+                return blues[dist];
+              })),
+            $(go.TextBlock,
+              { font: "12pt sans-serif", margin: 5 },
+              new go.Binding("text", "key"))
+          ),
+          // the expand/collapse button, at the top-right corner
+          $("TreeExpanderButton",
+            {
+              name: 'TREEBUTTON',
+              width: 20, height: 20,
+              alignment: go.Spot.TopRight,
+              alignmentFocus: go.Spot.Center,
+              // customize the expander behavior to
+              // create children if the node has never been expanded
+              click: (e, obj) => {  // OBJ is the Button
+                var node = obj.part;  // get the Node containing this Button
+                if (node === null) return;
+                e.handled = true;
+                expandNode(node);
+              }
+            }
+          )  // end TreeExpanderButton
+        );  // end Node
+
+      // create the model with a root node data
+      myDiagram.model = new go.TreeModel([
+        { key: 0, color: blues[0], everExpanded: false }
+      ]);
+
+
+      document.getElementById('zoomToFit').addEventListener('click', () => myDiagram.zoomToFit());
+
+      document.getElementById('expandAtRandom').addEventListener('click', () => expandAtRandom());
+    }
+
+    function expandNode(node) {
+      var diagram = node.diagram;
+      diagram.startTransaction("CollapseExpandTree");
+      // this behavior is specific to this incrementalTree sample:
+      var data = node.data;
+      if (!data.everExpanded) {
+        // only create children once per node
+        diagram.model.setDataProperty(data, "everExpanded", true);
+        var numchildren = createSubTree(data);
+        if (numchildren === 0) {  // now known no children: don't need Button!
+          node.findObject('TREEBUTTON').visible = false;
+        }
+      }
+      // this behavior is generic for most expand/collapse tree buttons:
+      if (node.isTreeExpanded) {
+        diagram.commandHandler.collapseTree(node);
+      } else {
+        diagram.commandHandler.expandTree(node);
+      }
+      diagram.commitTransaction("CollapseExpandTree");
+      myDiagram.zoomToFit();
+    }
+
+    // This dynamically creates the immediate children for a node.
+    // The sample assumes that we have no idea of whether there are any children
+    // for a node until we look for them the first time, which happens
+    // upon the first tree-expand of a node.
+    function createSubTree(parentdata) {
+      var numchildren = Math.floor(Math.random() * 10);
+      if (myDiagram.nodes.count <= 1) {
+        numchildren += 1;  // make sure the root node has at least one child
+      }
+      // create several node data objects and add them to the model
+      var model = myDiagram.model;
+      var parent = myDiagram.findNodeForData(parentdata);
+
+      var degrees = 1;
+      var grandparent = parent.findTreeParentNode();
+      while (grandparent) {
+        degrees++;
+        grandparent = grandparent.findTreeParentNode();
+      }
+
+      for (var i = 0; i < numchildren; i++) {
+        var childdata = {
+          key: model.nodeDataArray.length,
+          parent: parentdata.key,
+          rootdistance: degrees
+        };
+        // add to model.nodeDataArray and create a Node
+        model.addNodeData(childdata);
+        // position the new child node close to the parent
+        var child = myDiagram.findNodeForData(childdata);
+        child.location = parent.location;
+      }
+      return numchildren;
+    }
+
+    function expandAtRandom() {
+      var eligibleNodes = [];
+      myDiagram.nodes.each(n => {
+        if (!n.isTreeExpanded) eligibleNodes.push(n);
+      });
+      var node = eligibleNodes[Math.floor(Math.random() * (eligibleNodes.length))];
+      expandNode(node);
+    }
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+
+<div id="sample">
+  <div id="myDiagramDiv" style="background-color: white; border: 1px solid black; width: 100%; height: 700px; position: relative; -webkit-tap-highlight-color: rgba(255, 255, 255, 0);"><canvas tabindex="0" width="1317" height="872" style="position: absolute; top: 0px; left: 0px; z-index: 2; user-select: none; touch-action: none; width: 1054px; height: 698px;">This text is displayed if your browser does not support the Canvas HTML element.</canvas><div style="position: absolute; overflow: auto; width: 1054px; height: 698px; z-index: 1;"><div style="position: absolute; width: 1px; height: 1px;"></div></div></div>
+  <p><button id="zoomToFit">Zoom to Fit</button><button id="expandAtRandom">Expand random Node</button></p>
+  
+<p class="text-xs">GoJS version 2.2.16. Copyright 1998-2022 by Northwoods Software.</p></div>
+    <p><a href="https://github.com/NorthwoodsSoftware/GoJS/blob/master/samples/incrementalTree.html" target="_blank">View this sample page's source on GitHub</a></p><pre class=" language-js">
+    <span class="token keyword">function</span> <span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+
+      <span class="token comment">// Since 2.2 you can also author concise templates with method chaining instead of GraphObject.make</span>
+      <span class="token comment">// For details, see https://gojs.net/latest/intro/buildingObjects.html</span>
+      <span class="token keyword">const</span> $ <span class="token operator">=</span> go<span class="token punctuation">.</span>GraphObject<span class="token punctuation">.</span>make<span class="token punctuation">;</span>  <span class="token comment">// for conciseness in defining templates</span>
+
+      <span class="token keyword">var</span> blues <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token string">'#E1F5FE'</span><span class="token punctuation">,</span> <span class="token string">'#B3E5FC'</span><span class="token punctuation">,</span> <span class="token string">'#81D4FA'</span><span class="token punctuation">,</span> <span class="token string">'#4FC3F7'</span><span class="token punctuation">,</span> <span class="token string">'#29B6F6'</span><span class="token punctuation">,</span> <span class="token string">'#03A9F4'</span><span class="token punctuation">,</span> <span class="token string">'#039BE5'</span><span class="token punctuation">,</span> <span class="token string">'#0288D1'</span><span class="token punctuation">,</span> <span class="token string">'#0277BD'</span><span class="token punctuation">,</span> <span class="token string">'#01579B'</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+      myDiagram <span class="token operator">=</span>
+        <span class="token function">$</span><span class="token punctuation">(</span>go<span class="token punctuation">.</span>Diagram<span class="token punctuation">,</span> <span class="token string">"myDiagramDiv"</span><span class="token punctuation">,</span>  <span class="token comment">// must name or refer to the DIV HTML element</span>
+          <span class="token punctuation">{</span>
+            initialContentAlignment<span class="token operator">:</span> go<span class="token punctuation">.</span>Spot<span class="token punctuation">.</span>Center<span class="token punctuation">,</span>
+            layout<span class="token operator">:</span> <span class="token function">$</span><span class="token punctuation">(</span>go<span class="token punctuation">.</span>ForceDirectedLayout<span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token comment">// moving and copying nodes also moves and copies their subtrees</span>
+            <span class="token string">"commandHandler.copiesTree"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>  <span class="token comment">// for the copy command</span>
+            <span class="token string">"commandHandler.deletesTree"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span> <span class="token comment">// for the delete command</span>
+            <span class="token string">"draggingTool.dragsTree"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>  <span class="token comment">// dragging for both move and copy</span>
+            <span class="token string">"undoManager.isEnabled"</span><span class="token operator">:</span> <span class="token boolean">true</span>
+          <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+      <span class="token comment">// Define the Node template.</span>
+      <span class="token comment">// This uses a Spot Panel to position a button relative</span>
+      <span class="token comment">// to the ellipse surrounding the text.</span>
+      myDiagram<span class="token punctuation">.</span>nodeTemplate <span class="token operator">=</span>
+        <span class="token function">$</span><span class="token punctuation">(</span>go<span class="token punctuation">.</span>Node<span class="token punctuation">,</span> <span class="token string">"Spot"</span><span class="token punctuation">,</span>
+          <span class="token punctuation">{</span>
+            selectionObjectName<span class="token operator">:</span> <span class="token string">"PANEL"</span><span class="token punctuation">,</span>
+            isTreeExpanded<span class="token operator">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+            isTreeLeaf<span class="token operator">:</span> <span class="token boolean">false</span>
+          <span class="token punctuation">}</span><span class="token punctuation">,</span>
+          <span class="token comment">// the node's outer shape, which will surround the text</span>
+          <span class="token function">$</span><span class="token punctuation">(</span>go<span class="token punctuation">.</span>Panel<span class="token punctuation">,</span> <span class="token string">"Auto"</span><span class="token punctuation">,</span>
+            <span class="token punctuation">{</span> name<span class="token operator">:</span> <span class="token string">"PANEL"</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+            <span class="token function">$</span><span class="token punctuation">(</span>go<span class="token punctuation">.</span>Shape<span class="token punctuation">,</span> <span class="token string">"Circle"</span><span class="token punctuation">,</span>
+              <span class="token punctuation">{</span> fill<span class="token operator">:</span> <span class="token string">"whitesmoke"</span><span class="token punctuation">,</span> stroke<span class="token operator">:</span> <span class="token string">"black"</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+              <span class="token keyword">new</span> <span class="token class-name">go<span class="token punctuation">.</span>Binding</span><span class="token punctuation">(</span><span class="token string">"fill"</span><span class="token punctuation">,</span> <span class="token string">"rootdistance"</span><span class="token punctuation">,</span> <span class="token parameter">dist</span> <span class="token operator">=&gt;</span> <span class="token punctuation">{</span>
+                dist <span class="token operator">=</span> Math<span class="token punctuation">.</span><span class="token function">min</span><span class="token punctuation">(</span>blues<span class="token punctuation">.</span>length <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> dist<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">return</span> blues<span class="token punctuation">[</span>dist<span class="token punctuation">]</span><span class="token punctuation">;</span>
+              <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token function">$</span><span class="token punctuation">(</span>go<span class="token punctuation">.</span>TextBlock<span class="token punctuation">,</span>
+              <span class="token punctuation">{</span> font<span class="token operator">:</span> <span class="token string">"12pt sans-serif"</span><span class="token punctuation">,</span> margin<span class="token operator">:</span> <span class="token number">5</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+              <span class="token keyword">new</span> <span class="token class-name">go<span class="token punctuation">.</span>Binding</span><span class="token punctuation">(</span><span class="token string">"text"</span><span class="token punctuation">,</span> <span class="token string">"key"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+          <span class="token punctuation">)</span><span class="token punctuation">,</span>
+          <span class="token comment">// the expand/collapse button, at the top-right corner</span>
+          <span class="token function">$</span><span class="token punctuation">(</span><span class="token string">"TreeExpanderButton"</span><span class="token punctuation">,</span>
+            <span class="token punctuation">{</span>
+              name<span class="token operator">:</span> <span class="token string">'TREEBUTTON'</span><span class="token punctuation">,</span>
+              width<span class="token operator">:</span> <span class="token number">20</span><span class="token punctuation">,</span> height<span class="token operator">:</span> <span class="token number">20</span><span class="token punctuation">,</span>
+              alignment<span class="token operator">:</span> go<span class="token punctuation">.</span>Spot<span class="token punctuation">.</span>TopRight<span class="token punctuation">,</span>
+              alignmentFocus<span class="token operator">:</span> go<span class="token punctuation">.</span>Spot<span class="token punctuation">.</span>Center<span class="token punctuation">,</span>
+              <span class="token comment">// customize the expander behavior to</span>
+              <span class="token comment">// create children if the node has never been expanded</span>
+              <span class="token function-variable function">click</span><span class="token operator">:</span> <span class="token punctuation">(</span><span class="token parameter">e<span class="token punctuation">,</span> obj</span><span class="token punctuation">)</span> <span class="token operator">=&gt;</span> <span class="token punctuation">{</span>  <span class="token comment">// OBJ is the Button</span>
+                <span class="token keyword">var</span> node <span class="token operator">=</span> obj<span class="token punctuation">.</span>part<span class="token punctuation">;</span>  <span class="token comment">// get the Node containing this Button</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>node <span class="token operator">===</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+                e<span class="token punctuation">.</span>handled <span class="token operator">=</span> <span class="token boolean">true</span><span class="token punctuation">;</span>
+                <span class="token function">expandNode</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+              <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+          <span class="token punctuation">)</span>  <span class="token comment">// end TreeExpanderButton</span>
+        <span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// end Node</span>
+
+      <span class="token comment">// create the model with a root node data</span>
+      myDiagram<span class="token punctuation">.</span>model <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">go<span class="token punctuation">.</span>TreeModel</span><span class="token punctuation">(</span><span class="token punctuation">[</span>
+        <span class="token punctuation">{</span> key<span class="token operator">:</span> <span class="token number">0</span><span class="token punctuation">,</span> color<span class="token operator">:</span> blues<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> everExpanded<span class="token operator">:</span> <span class="token boolean">false</span> <span class="token punctuation">}</span>
+      <span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+      document<span class="token punctuation">.</span><span class="token function">getElementById</span><span class="token punctuation">(</span><span class="token string">'zoomToFit'</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">addEventListener</span><span class="token punctuation">(</span><span class="token string">'click'</span><span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=&gt;</span> myDiagram<span class="token punctuation">.</span><span class="token function">zoomToFit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+      document<span class="token punctuation">.</span><span class="token function">getElementById</span><span class="token punctuation">(</span><span class="token string">'expandAtRandom'</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">addEventListener</span><span class="token punctuation">(</span><span class="token string">'click'</span><span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">=&gt;</span> <span class="token function">expandAtRandom</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">function</span> <span class="token function">expandNode</span><span class="token punctuation">(</span><span class="token parameter">node</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      <span class="token keyword">var</span> diagram <span class="token operator">=</span> node<span class="token punctuation">.</span>diagram<span class="token punctuation">;</span>
+      diagram<span class="token punctuation">.</span><span class="token function">startTransaction</span><span class="token punctuation">(</span><span class="token string">"CollapseExpandTree"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token comment">// this behavior is specific to this incrementalTree sample:</span>
+      <span class="token keyword">var</span> data <span class="token operator">=</span> node<span class="token punctuation">.</span>data<span class="token punctuation">;</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>data<span class="token punctuation">.</span>everExpanded<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// only create children once per node</span>
+        diagram<span class="token punctuation">.</span>model<span class="token punctuation">.</span><span class="token function">setDataProperty</span><span class="token punctuation">(</span>data<span class="token punctuation">,</span> <span class="token string">"everExpanded"</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">var</span> numchildren <span class="token operator">=</span> <span class="token function">createSubTree</span><span class="token punctuation">(</span>data<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>numchildren <span class="token operator">===</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>  <span class="token comment">// now known no children: don't need Button!</span>
+          node<span class="token punctuation">.</span><span class="token function">findObject</span><span class="token punctuation">(</span><span class="token string">'TREEBUTTON'</span><span class="token punctuation">)</span><span class="token punctuation">.</span>visible <span class="token operator">=</span> <span class="token boolean">false</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+      <span class="token punctuation">}</span>
+      <span class="token comment">// this behavior is generic for most expand/collapse tree buttons:</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>node<span class="token punctuation">.</span>isTreeExpanded<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        diagram<span class="token punctuation">.</span>commandHandler<span class="token punctuation">.</span><span class="token function">collapseTree</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        diagram<span class="token punctuation">.</span>commandHandler<span class="token punctuation">.</span><span class="token function">expandTree</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+      diagram<span class="token punctuation">.</span><span class="token function">commitTransaction</span><span class="token punctuation">(</span><span class="token string">"CollapseExpandTree"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      myDiagram<span class="token punctuation">.</span><span class="token function">zoomToFit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">// This dynamically creates the immediate children for a node.</span>
+    <span class="token comment">// The sample assumes that we have no idea of whether there are any children</span>
+    <span class="token comment">// for a node until we look for them the first time, which happens</span>
+    <span class="token comment">// upon the first tree-expand of a node.</span>
+    <span class="token keyword">function</span> <span class="token function">createSubTree</span><span class="token punctuation">(</span><span class="token parameter">parentdata</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      <span class="token keyword">var</span> numchildren <span class="token operator">=</span> Math<span class="token punctuation">.</span><span class="token function">floor</span><span class="token punctuation">(</span>Math<span class="token punctuation">.</span><span class="token function">random</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">*</span> <span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token keyword">if</span> <span class="token punctuation">(</span>myDiagram<span class="token punctuation">.</span>nodes<span class="token punctuation">.</span>count <span class="token operator">&lt;=</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        numchildren <span class="token operator">+=</span> <span class="token number">1</span><span class="token punctuation">;</span>  <span class="token comment">// make sure the root node has at least one child</span>
+      <span class="token punctuation">}</span>
+      <span class="token comment">// create several node data objects and add them to the model</span>
+      <span class="token keyword">var</span> model <span class="token operator">=</span> myDiagram<span class="token punctuation">.</span>model<span class="token punctuation">;</span>
+      <span class="token keyword">var</span> parent <span class="token operator">=</span> myDiagram<span class="token punctuation">.</span><span class="token function">findNodeForData</span><span class="token punctuation">(</span>parentdata<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+      <span class="token keyword">var</span> degrees <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+      <span class="token keyword">var</span> grandparent <span class="token operator">=</span> parent<span class="token punctuation">.</span><span class="token function">findTreeParentNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token keyword">while</span> <span class="token punctuation">(</span>grandparent<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        degrees<span class="token operator">++</span><span class="token punctuation">;</span>
+        grandparent <span class="token operator">=</span> grandparent<span class="token punctuation">.</span><span class="token function">findTreeParentNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+
+      <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">var</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> numchildren<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">var</span> childdata <span class="token operator">=</span> <span class="token punctuation">{</span>
+          key<span class="token operator">:</span> model<span class="token punctuation">.</span>nodeDataArray<span class="token punctuation">.</span>length<span class="token punctuation">,</span>
+          parent<span class="token operator">:</span> parentdata<span class="token punctuation">.</span>key<span class="token punctuation">,</span>
+          rootdistance<span class="token operator">:</span> degrees
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+        <span class="token comment">// add to model.nodeDataArray and create a Node</span>
+        model<span class="token punctuation">.</span><span class="token function">addNodeData</span><span class="token punctuation">(</span>childdata<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// position the new child node close to the parent</span>
+        <span class="token keyword">var</span> child <span class="token operator">=</span> myDiagram<span class="token punctuation">.</span><span class="token function">findNodeForData</span><span class="token punctuation">(</span>childdata<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        child<span class="token punctuation">.</span>location <span class="token operator">=</span> parent<span class="token punctuation">.</span>location<span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+      <span class="token keyword">return</span> numchildren<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">function</span> <span class="token function">expandAtRandom</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      <span class="token keyword">var</span> eligibleNodes <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+      myDiagram<span class="token punctuation">.</span>nodes<span class="token punctuation">.</span><span class="token function">each</span><span class="token punctuation">(</span><span class="token parameter">n</span> <span class="token operator">=&gt;</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>n<span class="token punctuation">.</span>isTreeExpanded<span class="token punctuation">)</span> eligibleNodes<span class="token punctuation">.</span><span class="token function">push</span><span class="token punctuation">(</span>n<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token keyword">var</span> node <span class="token operator">=</span> eligibleNodes<span class="token punctuation">[</span>Math<span class="token punctuation">.</span><span class="token function">floor</span><span class="token punctuation">(</span>Math<span class="token punctuation">.</span><span class="token function">random</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">*</span> <span class="token punctuation">(</span>eligibleNodes<span class="token punctuation">.</span>length<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+      <span class="token function">expandNode</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    window<span class="token punctuation">.</span><span class="token function">addEventListener</span><span class="token punctuation">(</span><span class="token string">'DOMContentLoaded'</span><span class="token punctuation">,</span> init<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  </pre></div>
+  </body>
+  </html>
